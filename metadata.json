@@ -1,0 +1,5 @@
+{
+  "name": "Consulta FIPE Pro",
+  "description": "Uma ferramenta moderna e elegante para consulta de preços da Tabela FIPE (Carros, Motos e Caminhões) com insights inteligentes via Gemini AI.",
+  "requestFramePermissions": []
+}

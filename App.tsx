@@ -35,10 +35,11 @@ const App: React.FC = () => {
   const [favorites, setFavorites] = useState<Favorite[]>([]);
 
   useEffect(() => {
-    // Check session
+    // Check initial session
     supabase.auth.getSession().then(({ data: { session } }) => {
-      setUser(session?.user ?? null);
-      if (session?.user) fetchFavorites(session.user.id);
+      const currentUser = session?.user ?? null;
+      setUser(currentUser);
+      if (currentUser) fetchFavorites(currentUser.id);
     });
 
     // Listen auth changes
@@ -46,7 +47,10 @@ const App: React.FC = () => {
       const activeUser = session?.user ?? null;
       setUser(activeUser);
       if (activeUser) fetchFavorites(activeUser.id);
-      else setFavorites([]);
+      else {
+        setFavorites([]);
+        setAuthMode(null);
+      }
     });
 
     // Load local history
@@ -71,7 +75,12 @@ const App: React.FC = () => {
   };
 
   const fetchFavorites = async (userId: string) => {
-    const { data, error } = await supabase.from('favorites').select('*').eq('user_id', userId);
+    // Com RLS ativo, o Supabase filtrará automaticamente pelo user_id do token
+    const { data, error } = await supabase
+      .from('favorites')
+      .select('*')
+      .order('created_at', { ascending: false });
+      
     if (!error && data) {
       setFavorites(data.map(f => ({
         fipeCode: f.fipe_code, 
@@ -100,40 +109,35 @@ const App: React.FC = () => {
         if (password !== confirmPassword) throw new Error('As senhas não coincidem.');
         if (password.length < 6) throw new Error('A senha deve ter pelo menos 6 caracteres.');
         
-        const { data, error: signUpError } = await supabase.auth.signUp({
+        const { error: signUpError } = await supabase.auth.signUp({
           email,
           password,
           options: { 
-            data: { full_name: fullName },
-            emailRedirectTo: window.location.origin
+            data: { full_name: fullName }
           }
         });
         
         if (signUpError) throw signUpError;
         
-        // Se o cadastro foi bem sucedido e exige verificação por e-mail
         setAuthMode('verify');
-        setAuthMessage(`Um código de verificação foi enviado para ${email}. Por favor, insira-o abaixo.`);
+        setAuthMessage(`Um link de verificação foi enviado para ${email}.`);
       } else if (authMode === 'verify') {
-        const { data, error: verifyError } = await supabase.auth.verifyOtp({
+        const { error: verifyError } = await supabase.auth.verifyOtp({
           email,
           token: verificationCode,
           type: 'signup'
         });
         
         if (verifyError) throw verifyError;
-        
-        setAuthMessage('Conta verificada com sucesso! Você já pode entrar.');
-        setAuthMode('login');
-        setVerificationCode('');
+        setAuthMode(null);
       } else if (authMode === 'login') {
         const { error: signInError } = await supabase.auth.signInWithPassword({ email, password });
-        if (signInError) throw new Error('E-mail ou senha incorretos.');
+        if (signInError) throw signInError;
         setAuthMode(null);
         clearAuth();
       }
     } catch (err: any) {
-      setAuthError(err.message || 'Ocorreu um erro inesperado.');
+      setAuthError(err.message || 'Erro na autenticação.');
     } finally {
       setLoading(false);
     }
@@ -197,18 +201,42 @@ const App: React.FC = () => {
   };
 
   const handleFavorite = async () => {
-    if (!result || !user) { if (!user) setAuthMode('login'); return; }
+    if (!result || !user) { 
+      if (!user) setAuthMode('login'); 
+      return; 
+    }
+
     const isFav = favorites.find(f => f.fipeCode === result.codeFipe && f.yearId === selectedYear);
     
-    if (isFav) {
-      await supabase.from('favorites').delete().eq('user_id', user.id).eq('fipe_code', result.codeFipe).eq('year_id', selectedYear);
-      setFavorites(prev => prev.filter(f => !(f.fipeCode === result.codeFipe && f.yearId === selectedYear)));
-    } else {
-      await supabase.from('favorites').insert({ 
-        user_id: user.id, vehicle_type: type, fipe_code: result.codeFipe, year_id: selectedYear, 
-        brand_name: result.brand, model_name: result.model, saved_price: result.price, saved_reference: result.referenceMonth
-      });
-      setFavorites(prev => [{ fipeCode: result.codeFipe, yearId: selectedYear, vehicleType: type, brandName: result.brand, modelName: result.model, savedPrice: result.price, savedReference: result.referenceMonth }, ...prev]);
+    try {
+      if (isFav) {
+        const { error } = await supabase
+          .from('favorites')
+          .delete()
+          .eq('user_id', user.id) // Reforço de segurança, embora o RLS já trate isso
+          .eq('fipe_code', result.codeFipe)
+          .eq('year_id', selectedYear);
+          
+        if (error) throw error;
+        setFavorites(prev => prev.filter(f => !(f.fipeCode === result.codeFipe && f.yearId === selectedYear)));
+      } else {
+        const { error } = await supabase.from('favorites').insert({ 
+          user_id: user.id, 
+          vehicle_type: type, 
+          fipe_code: result.codeFipe, 
+          year_id: selectedYear, 
+          brand_name: result.brand, 
+          model_name: result.model, 
+          saved_price: result.price, 
+          saved_reference: result.referenceMonth
+        });
+        
+        if (error) throw error;
+        setFavorites(prev => [{ fipeCode: result.codeFipe, yearId: selectedYear, vehicleType: type, brandName: result.brand, modelName: result.model, savedPrice: result.price, savedReference: result.referenceMonth }, ...prev]);
+      }
+    } catch (err: any) {
+      console.error("Erro ao processar favorito:", err);
+      alert("Erro de segurança ou conexão. Verifique se você está logado corretamente.");
     }
   };
 
@@ -219,7 +247,9 @@ const App: React.FC = () => {
         <div className="max-w-6xl mx-auto flex flex-col md:flex-row justify-between items-center gap-8">
           <div className="text-center md:text-left cursor-pointer" onClick={() => setResult(null)}>
             <h1 className="text-4xl font-black uppercase italic tracking-tight">Tabela FIPE <span className="text-[#ff8800]">PRO</span></h1>
-            <p className="text-blue-100/70 text-sm font-medium tracking-wide">OFICIAL • INSIGHTS IA</p>
+            <p className="text-blue-100/70 text-sm font-medium tracking-wide flex items-center justify-center md:justify-start gap-1">
+              <span className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></span> CONEXÃO SEGURA • INSIGHTS IA
+            </p>
           </div>
           <div className="flex gap-4">
             {user ? (
@@ -241,7 +271,7 @@ const App: React.FC = () => {
             <h2 className="text-2xl font-black mb-1 uppercase italic">
               {authMode === 'login' ? 'Acessar Conta' : authMode === 'signup' ? 'Cadastrar-se' : 'Verificar Cadastro'}
             </h2>
-            <p className="text-slate-400 text-xs mb-8 italic">Dados oficiais e seguros via Supabase.</p>
+            <p className="text-slate-400 text-[10px] mb-8 italic uppercase tracking-widest">Proteção via Row Level Security (RLS)</p>
             
             {authError && <div className="mb-4 p-3 bg-red-50 text-red-600 rounded-lg text-xs font-bold border border-red-100">{authError}</div>}
             {authMessage && <div className="mb-4 p-3 bg-blue-50 text-blue-600 rounded-lg text-xs font-bold border border-blue-100">{authMessage}</div>}
@@ -261,7 +291,7 @@ const App: React.FC = () => {
               )}
               {authMode === 'verify' && (
                 <div className="space-y-4">
-                  <p className="text-[10px] font-black text-blue-500 uppercase text-center">Digite o código de 6 dígitos enviado por e-mail</p>
+                  <p className="text-[10px] font-black text-blue-500 uppercase text-center">Digite o código enviado ao seu e-mail</p>
                   <input type="text" placeholder="0 0 0 0 0 0" value={verificationCode} onChange={e => setVerificationCode(e.target.value)} className="w-full p-4 rounded-xl border border-slate-200 bg-slate-50 text-center text-3xl font-black tracking-[0.5em] outline-none" maxLength={6} required />
                 </div>
               )}
@@ -270,7 +300,7 @@ const App: React.FC = () => {
                 disabled={loading}
                 className="w-full bg-[#005599] text-white font-black py-4 rounded-xl shadow-lg uppercase tracking-widest text-sm italic transition-all hover:bg-blue-800 disabled:opacity-50"
               >
-                {loading ? 'Processando...' : (authMode === 'login' ? 'Entrar Agora' : authMode === 'signup' ? 'Enviar Código' : 'Finalizar Cadastro')}
+                {loading ? 'Processando...' : (authMode === 'login' ? 'Entrar Agora' : authMode === 'signup' ? 'Enviar Código' : 'Validar Token')}
               </button>
             </form>
 
@@ -292,7 +322,7 @@ const App: React.FC = () => {
               <span className="text-blue-500">⭐</span> FAVORITOS
             </h3>
             {favorites.length === 0 ? (
-              <p className="text-[10px] text-slate-300 font-bold text-center italic">Sua lista está vazia.</p>
+              <p className="text-[10px] text-slate-300 font-bold text-center italic">{user ? 'Sua lista está vazia.' : 'Faça login para salvar.'}</p>
             ) : (
               <div className="space-y-4">
                 {favorites.map(f => (
@@ -344,7 +374,7 @@ const App: React.FC = () => {
                   {years.map(y => <option key={y.code} value={y.code}>{y.name.replace('32000', 'Zero KM')}</option>)}
                 </select>
               </div>
-              {loading && <div className="text-center py-4"><div className="loader rounded-full border-4 border-t-4 h-10 w-10 mx-auto"></div><p className="text-[10px] font-black text-blue-500 mt-2 uppercase">Sincronizando base oficial...</p></div>}
+              {loading && <div className="text-center py-4"><div className="loader rounded-full border-4 border-t-4 h-10 w-10 mx-auto"></div><p className="text-[10px] font-black text-blue-500 mt-2 uppercase">Sincronizando base oficial segura...</p></div>}
             </section>
           ) : (
             <div className="space-y-8 animate-in slide-in-from-bottom-10 duration-500">

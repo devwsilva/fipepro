@@ -4,7 +4,5 @@ import react from '@vitejs/plugin-react';
 
 export default defineConfig({
   plugins: [react()],
-  define: {
-    'process.env': process.env
-  }
+  // Vite já trata as variáveis VITE_ automaticamente, não é necessário o 'define process.env'
 });

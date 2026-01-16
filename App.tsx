@@ -18,23 +18,19 @@ const App: React.FC = () => {
   const [verificationCode, setVerificationCode] = useState('');
   const [authError, setAuthError] = useState<string | null>(null);
   const [authMessage, setAuthMessage] = useState<string | null>(null);
-
-  // FIPE State
-  const [type, setType] = useState<VehicleType>('cars');
-  const [brands, setBrands] = useState<FipeItem[]>([]);
-  const [selectedBrand, setSelectedBrand] = useState<string>('');
-  const [models, setModels] = useState<FipeItem[]>([]);
-  const [selectedModel, setSelectedModel] = useState<string>('');
-  const [years, setYears] = useState<FipeItem[]>([]);
-  const [selectedYear, setSelectedYear] = useState<string>('');
-  
-  // Results & UI
-  const [result, setResult] = useState<FipeResult | null>(null);
-  const [loading, setLoading] = useState<boolean>(false);
-  const [history, setHistory] = useState<HistoryItem[]>([]);
-  const [favorites, setFavorites] = useState<Favorite[]>([]);
+  const [configMissing, setConfigMissing] = useState(false);
 
   useEffect(() => {
+    // Verificação robusta de chaves
+    const checkConfig = () => {
+      const url = (import.meta as any).env?.VITE_SUPABASE_URL || (process as any).env?.VITE_SUPABASE_URL;
+      if (!url || url.includes('placeholder')) {
+        setConfigMissing(true);
+      }
+    };
+    
+    checkConfig();
+
     // Check initial session
     supabase.auth.getSession().then(({ data: { session } }) => {
       const currentUser = session?.user ?? null;
@@ -60,6 +56,21 @@ const App: React.FC = () => {
     return () => subscription.unsubscribe();
   }, []);
 
+  // FIPE State
+  const [type, setType] = useState<VehicleType>('cars');
+  const [brands, setBrands] = useState<FipeItem[]>([]);
+  const [selectedBrand, setSelectedBrand] = useState<string>('');
+  const [models, setModels] = useState<FipeItem[]>([]);
+  const [selectedModel, setSelectedModel] = useState<string>('');
+  const [years, setYears] = useState<FipeItem[]>([]);
+  const [selectedYear, setSelectedYear] = useState<string>('');
+  
+  // Results & UI
+  const [result, setResult] = useState<FipeResult | null>(null);
+  const [loading, setLoading] = useState<boolean>(false);
+  const [history, setHistory] = useState<HistoryItem[]>([]);
+  const [favorites, setFavorites] = useState<Favorite[]>([]);
+
   useEffect(() => {
     loadBrands();
   }, [type]);
@@ -75,22 +86,25 @@ const App: React.FC = () => {
   };
 
   const fetchFavorites = async (userId: string) => {
-    // Com RLS ativo, o Supabase filtrará automaticamente pelo user_id do token
-    const { data, error } = await supabase
-      .from('favorites')
-      .select('*')
-      .order('created_at', { ascending: false });
-      
-    if (!error && data) {
-      setFavorites(data.map(f => ({
-        fipeCode: f.fipe_code, 
-        yearId: f.year_id, 
-        vehicleType: f.vehicle_type as VehicleType,
-        brandName: f.brand_name, 
-        modelName: f.model_name,
-        savedPrice: f.saved_price || '---',
-        savedReference: f.saved_reference || '---'
-      })));
+    try {
+      const { data, error } = await supabase
+        .from('favorites')
+        .select('*')
+        .order('created_at', { ascending: false });
+        
+      if (!error && data) {
+        setFavorites(data.map(f => ({
+          fipeCode: f.fipe_code, 
+          yearId: f.year_id, 
+          vehicleType: f.vehicle_type as VehicleType,
+          brandName: f.brand_name, 
+          modelName: f.model_name,
+          savedPrice: f.saved_price || '---',
+          savedReference: f.saved_reference || '---'
+        })));
+      }
+    } catch (e) {
+      console.warn("Erro ao buscar favoritos:", e);
     }
   };
 
@@ -101,6 +115,10 @@ const App: React.FC = () => {
 
   const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (configMissing) {
+      setAuthError("Erro de Configuração: As chaves do Supabase não foram encontradas nas variáveis de ambiente da hospedagem.");
+      return;
+    }
     setAuthError(null);
     setAuthMessage(null);
     setLoading(true);
@@ -120,7 +138,7 @@ const App: React.FC = () => {
         if (signUpError) throw signUpError;
         
         setAuthMode('verify');
-        setAuthMessage(`Um link de verificação foi enviado para ${email}.`);
+        setAuthMessage(`Um link de verificação foi enviado para ${email}. Verifique também sua caixa de spam.`);
       } else if (authMode === 'verify') {
         const { error: verifyError } = await supabase.auth.verifyOtp({
           email,
@@ -130,6 +148,7 @@ const App: React.FC = () => {
         
         if (verifyError) throw verifyError;
         setAuthMode(null);
+        setAuthMessage("E-mail verificado com sucesso!");
       } else if (authMode === 'login') {
         const { error: signInError } = await supabase.auth.signInWithPassword({ email, password });
         if (signInError) throw signInError;
@@ -137,7 +156,11 @@ const App: React.FC = () => {
         clearAuth();
       }
     } catch (err: any) {
-      setAuthError(err.message || 'Erro na autenticação.');
+      if (err.message === 'Failed to fetch') {
+        setAuthError("Não foi possível conectar ao servidor de autenticação. Isso pode ser um bloqueador de anúncios ou falha na URL do Supabase na Vercel.");
+      } else {
+        setAuthError(err.message || 'Ocorreu um erro inesperado.');
+      }
     } finally {
       setLoading(false);
     }
@@ -213,7 +236,6 @@ const App: React.FC = () => {
         const { error } = await supabase
           .from('favorites')
           .delete()
-          .eq('user_id', user.id) // Reforço de segurança, embora o RLS já trate isso
           .eq('fipe_code', result.codeFipe)
           .eq('year_id', selectedYear);
           
@@ -236,12 +258,19 @@ const App: React.FC = () => {
       }
     } catch (err: any) {
       console.error("Erro ao processar favorito:", err);
-      alert("Erro de segurança ou conexão. Verifique se você está logado corretamente.");
+      alert(err.message === 'Failed to fetch' ? "Erro de conexão ao salvar favorito. Verifique seu AdBlocker." : "Erro ao salvar favorito.");
     }
   };
 
   return (
     <div className="min-h-screen bg-[#f4f7f9] text-slate-800">
+      {/* Banner de Aviso Crítico */}
+      {configMissing && (
+        <div className="bg-red-600 text-white p-2 text-xs font-bold text-center uppercase tracking-widest sticky top-0 z-[200] animate-pulse">
+          ⚠️ Configuração do Banco de Dados pendente na Vercel (VITE_SUPABASE_URL)
+        </div>
+      )}
+
       {/* Header */}
       <header className="bg-gradient-to-r from-[#005599] to-[#003366] text-white py-10 px-4 shadow-xl">
         <div className="max-w-6xl mx-auto flex flex-col md:flex-row justify-between items-center gap-8">

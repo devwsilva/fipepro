@@ -5,30 +5,21 @@ import { VehicleType, FipeItem, FipeResult, HistoryItem, Favorite } from './type
 import VehicleTypeSelector from './components/VehicleTypeSelector';
 import AiInsight from './components/AiInsight';
 import PriceHistory from './components/PriceHistory';
+import BannerAd from './components/BannerAd';
 import { supabase } from './lib/supabase';
 
 const App: React.FC = () => {
   // Auth State
   const [user, setUser] = useState<any>(null);
-  const [authMode, setAuthMode] = useState<'login' | 'signup' | null>(null);
+  const [authMode, setAuthMode] = useState<'login' | 'signup' | 'forgotPassword' | null>(null);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [fullName, setFullName] = useState('');
   const [authError, setAuthError] = useState<string | null>(null);
   const [authMessage, setAuthMessage] = useState<string | null>(null);
-  const [configMissing, setConfigMissing] = useState(false);
 
   useEffect(() => {
-    const checkConfig = () => {
-      const key = (import.meta as any).env?.VITE_SUPABASE_ANON_KEY || (process as any).env?.VITE_SUPABASE_ANON_KEY;
-      if (!key || key === 'KEY_NAO_CONFIGURADA') {
-        setConfigMissing(true);
-      }
-    };
-    
-    checkConfig();
-
     supabase.auth.getSession().then(({ data: { session } }) => {
       const currentUser = session?.user ?? null;
       setUser(currentUser);
@@ -38,10 +29,12 @@ const App: React.FC = () => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       const activeUser = session?.user ?? null;
       setUser(activeUser);
-      if (activeUser) fetchFavorites(activeUser.id);
-      else {
-        setFavorites([]);
+      if (activeUser) {
+        fetchFavorites(activeUser.id);
         setAuthMode(null);
+        clearAuth();
+      } else {
+        setFavorites([]);
       }
     });
 
@@ -54,10 +47,12 @@ const App: React.FC = () => {
   const [type, setType] = useState<VehicleType>('cars');
   const [brands, setBrands] = useState<FipeItem[]>([]);
   const [selectedBrand, setSelectedBrand] = useState<string>('');
-  const [models, setModels] = useState<FipeItem[]>([]);
-  const [selectedModel, setSelectedModel] = useState<string>('');
+  
   const [years, setYears] = useState<FipeItem[]>([]);
   const [selectedYear, setSelectedYear] = useState<string>('');
+  
+  const [models, setModels] = useState<FipeItem[]>([]);
+  const [selectedModel, setSelectedModel] = useState<string>('');
   
   const [result, setResult] = useState<FipeResult | null>(null);
   const [loading, setLoading] = useState<boolean>(false);
@@ -73,7 +68,12 @@ const App: React.FC = () => {
     try {
       const data = await fipeService.getBrands(type);
       setBrands(data);
-      setSelectedBrand(''); setModels([]); setSelectedModel(''); setYears([]); setSelectedYear('');
+      setSelectedBrand(''); 
+      setYears([]); 
+      setSelectedYear(''); 
+      setModels([]); 
+      setSelectedModel('');
+      setResult(null);
     } catch (err) { console.error(err); }
     finally { setLoading(false); }
   };
@@ -119,28 +119,27 @@ const App: React.FC = () => {
         const { data, error: signUpError } = await supabase.auth.signUp({
           email,
           password,
-          options: { 
-            data: { full_name: fullName }
-          }
+          options: { data: { full_name: fullName } }
         });
         
-        if (signUpError) throw signUpError;
+        if (signUpError) {
+          if (signUpError.message.includes('already registered')) {
+            throw new Error('Este e-mail já está cadastrado. Por favor, faça login.');
+          }
+          throw signUpError;
+        }
         
-        // Se a sessão já vier no signup (Email Confirmation OFF no Supabase), logamos direto.
-        if (data.session) {
-          setAuthMode(null);
-          clearAuth();
-          setAuthMessage("Cadastro realizado! Bem-vindo.");
-        } else {
-          // Fallback caso o Supabase ainda exija confirmação (o usuário pediu para desabilitar, mas depende do Dashboard)
-          setAuthMessage("Conta criada! Tente entrar agora.");
-          setAuthMode('login');
+        if (!data.session) {
+           setAuthMessage("Cadastro realizado! Verifique seu e-mail ou tente fazer login.");
+           setAuthMode('login');
         }
       } else if (authMode === 'login') {
         const { error: signInError } = await supabase.auth.signInWithPassword({ email, password });
         if (signInError) throw signInError;
-        setAuthMode(null);
-        clearAuth();
+      } else if (authMode === 'forgotPassword') {
+        const { error: resetError } = await supabase.auth.resetPasswordForEmail(email);
+        if (resetError) throw resetError;
+        setAuthMessage("Instruções de recuperação enviadas para seu e-mail.");
       }
     } catch (err: any) {
       setAuthError(err.message || 'Ocorreu um erro inesperado.');
@@ -150,34 +149,40 @@ const App: React.FC = () => {
   };
 
   const handleBrandChange = async (val: string) => {
-    setSelectedBrand(val); setSelectedModel(''); setYears([]); setSelectedYear('');
+    setSelectedBrand(val); 
+    setSelectedYear(''); 
+    setYears([]); 
+    setSelectedModel(''); 
+    setModels([]);
     if (!val) return;
     setLoading(true);
     try {
-      const data = await fipeService.getModels(type, val);
-      setModels(data);
-    } catch (err) { console.error(err); }
-    finally { setLoading(false); }
-  };
-
-  const handleModelChange = async (val: string) => {
-    setSelectedModel(val); setSelectedYear('');
-    if (!val) return;
-    setLoading(true);
-    try {
-      const data = await fipeService.getYears(type, selectedBrand, val);
+      const data = await fipeService.getYearsByBrand(type, val);
       setYears(data);
     } catch (err) { console.error(err); }
     finally { setLoading(false); }
   };
 
   const handleYearChange = async (val: string) => {
-    setSelectedYear(val);
+    setSelectedYear(val); 
+    setSelectedModel(''); 
+    setModels([]);
     if (!val) return;
     setLoading(true);
     try {
-      const data = await fipeService.getDetails(type, selectedBrand, selectedModel, val);
-      displayResult(data, type, val);
+      const data = await fipeService.getModelsByYear(type, selectedBrand, val);
+      setModels(data);
+    } catch (err) { console.error(err); }
+    finally { setLoading(false); }
+  };
+
+  const handleModelChange = async (val: string) => {
+    setSelectedModel(val);
+    if (!val) return;
+    setLoading(true);
+    try {
+      const data = await fipeService.getDetails(type, selectedBrand, val, selectedYear);
+      displayResult(data, type, selectedYear);
     } catch (err) { console.error(err); }
     finally { setLoading(false); }
   };
@@ -241,18 +246,12 @@ const App: React.FC = () => {
       }
     } catch (err: any) {
       console.error("Erro ao processar favorito:", err);
-      alert("Erro ao salvar favorito. Verifique se o banco de dados está configurado.");
+      alert("Erro ao salvar favorito. Verifique sua conexão.");
     }
   };
 
   return (
-    <div className="min-h-screen bg-[#f4f7f9] text-slate-800 antialiased">
-      {configMissing && (
-        <div className="bg-red-600 text-white p-2 text-[10px] font-bold text-center uppercase tracking-widest sticky top-0 z-[200]">
-          ⚠️ CRÍTICO: VITE_SUPABASE_ANON_KEY NÃO CONFIGURADA NA VERCEL. LOGIN E FAVORITOS DESATIVADOS.
-        </div>
-      )}
-
+    <div className="min-h-screen bg-[#f4f7f9] text-slate-800 antialiased pb-24 md:pb-32">
       {/* Header */}
       <header className="bg-gradient-to-r from-[#005599] to-[#003366] text-white py-6 md:py-12 px-4 shadow-xl">
         <div className="max-w-6xl mx-auto flex flex-col md:flex-row justify-between items-center gap-6">
@@ -277,12 +276,14 @@ const App: React.FC = () => {
 
       {/* Auth Modal */}
       {authMode && (
-        <div className="fixed inset-0 bg-slate-900/90 backdrop-blur-md z-[100] flex items-center justify-center p-4 overflow-y-auto overflow-x-hidden">
+        <div className="fixed inset-0 bg-slate-900/90 backdrop-blur-md z-[100] flex items-center justify-center p-4 overflow-y-auto">
           <div className="bg-white rounded-[2rem] p-6 md:p-10 max-w-md w-full shadow-2xl relative my-auto animate-in fade-in zoom-in duration-300">
             <h2 className="text-xl md:text-2xl font-black mb-1 uppercase italic text-slate-900">
-              {authMode === 'login' ? 'Acessar Conta' : 'Criar Conta'}
+              {authMode === 'login' ? 'Bem-vindo de volta' : authMode === 'signup' ? 'Nova Conta' : 'Recuperar Acesso'}
             </h2>
-            <p className="text-slate-400 text-[9px] mb-6 italic uppercase tracking-widest">Acesso instantâneo sem confirmação</p>
+            <p className="text-slate-400 text-[9px] mb-6 italic uppercase tracking-widest">
+              {authMode === 'login' ? 'Acesse seus veículos salvos' : authMode === 'signup' ? 'Crie seu perfil em segundos' : 'Enviaremos um link seguro'}
+            </p>
             
             {authError && <div className="mb-4 p-3 bg-red-50 text-red-600 rounded-xl text-[10px] font-bold border border-red-100">{authError}</div>}
             {authMessage && <div className="mb-4 p-3 bg-blue-50 text-blue-600 rounded-xl text-[10px] font-bold border border-blue-100">{authMessage}</div>}
@@ -292,26 +293,40 @@ const App: React.FC = () => {
                 <input type="text" placeholder="Nome Completo" value={fullName} onChange={e => setFullName(e.target.value)} className="w-full p-4 rounded-xl border border-slate-200 bg-slate-50 text-sm focus:ring-2 focus:ring-blue-500 outline-none font-bold" required />
               )}
               <input type="email" placeholder="E-mail" value={email} onChange={e => setEmail(e.target.value)} className="w-full p-4 rounded-xl border border-slate-200 bg-slate-50 text-sm focus:ring-2 focus:ring-blue-500 outline-none font-bold" required />
-              <input type="password" placeholder="Senha" value={password} onChange={e => setPassword(e.target.value)} className="w-full p-4 rounded-xl border border-slate-200 bg-slate-50 text-sm focus:ring-2 focus:ring-blue-500 outline-none font-bold" required />
+              
+              {authMode !== 'forgotPassword' && (
+                <input type="password" placeholder="Senha" value={password} onChange={e => setPassword(e.target.value)} className="w-full p-4 rounded-xl border border-slate-200 bg-slate-50 text-sm focus:ring-2 focus:ring-blue-500 outline-none font-bold" required />
+              )}
+              
               {authMode === 'signup' && (
                 <input type="password" placeholder="Confirmar Senha" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} className="w-full p-4 rounded-xl border border-slate-200 bg-slate-50 text-sm focus:ring-2 focus:ring-blue-500 outline-none font-bold" required />
               )}
+              
               <button type="submit" disabled={loading} className="w-full bg-[#005599] text-white font-black py-4 rounded-xl shadow-lg uppercase tracking-widest text-xs italic transition-all active:scale-95 disabled:opacity-50">
-                {loading ? 'Processando...' : (authMode === 'login' ? 'Entrar' : 'Cadastrar e Logar')}
+                {loading ? 'Processando...' : (authMode === 'login' ? 'Entrar' : authMode === 'signup' ? 'Cadastrar Agora' : 'Enviar Link')}
               </button>
             </form>
 
             <div className="mt-6 text-center flex flex-col gap-3">
-              <button onClick={() => { setAuthMode(authMode === 'login' ? 'signup' : 'login'); clearAuth(); }} className="text-[11px] font-bold text-blue-500 hover:text-blue-700">
-                {authMode === 'login' ? 'Não tem conta? Registre-se agora' : 'Já possui conta? Faça o login'}
-              </button>
-              <button onClick={() => { setAuthMode(null); clearAuth(); }} className="text-[9px] font-black text-slate-300 uppercase italic hover:text-red-500 transition-colors">Fechar</button>
+              {authMode === 'login' && (
+                <>
+                  <button onClick={() => { setAuthMode('signup'); clearAuth(); }} className="text-[11px] font-bold text-blue-500 hover:text-blue-700">Não tem conta? Registre-se aqui</button>
+                  <button onClick={() => { setAuthMode('forgotPassword'); clearAuth(); }} className="text-[10px] font-bold text-slate-400 hover:text-slate-600">Esqueci minha senha</button>
+                </>
+              )}
+              {authMode === 'signup' && (
+                <button onClick={() => { setAuthMode('login'); clearAuth(); }} className="text-[11px] font-bold text-blue-500 hover:text-blue-700">Já possui conta? Faça o login</button>
+              )}
+              {authMode === 'forgotPassword' && (
+                <button onClick={() => { setAuthMode('login'); clearAuth(); }} className="text-[11px] font-bold text-blue-500 hover:text-blue-700">Voltar para o login</button>
+              )}
+              <button onClick={() => { setAuthMode(null); clearAuth(); }} className="text-[9px] font-black text-slate-300 uppercase italic hover:text-red-500 transition-colors mt-2">Fechar Janela</button>
             </div>
           </div>
         </div>
       )}
 
-      {/* Main Content */}
+      {/* Main Content Area */}
       <main className="max-w-6xl mx-auto px-4 py-6 md:py-12 flex flex-col lg:flex-row gap-6 md:gap-10">
         
         {/* Search Column */}
@@ -319,21 +334,48 @@ const App: React.FC = () => {
           {!result ? (
             <section className="bg-white rounded-[1.5rem] md:rounded-[2.5rem] shadow-xl md:shadow-2xl p-5 md:p-10 space-y-6 md:space-y-10 border border-slate-100">
               <VehicleTypeSelector selected={type} onChange={setType} />
+              
               <div className="grid grid-cols-1 gap-3 md:gap-6">
-                <select value={selectedBrand} onChange={e => handleBrandChange(e.target.value)} className="w-full p-4 rounded-xl md:rounded-2xl border-2 border-slate-100 font-bold outline-none focus:border-blue-500 transition-all text-sm md:text-base bg-white shadow-sm appearance-none">
-                  <option value="">Selecione a Marca</option>
+                <select 
+                  value={selectedBrand} 
+                  onChange={e => handleBrandChange(e.target.value)} 
+                  className="w-full p-4 rounded-xl md:rounded-2xl border-2 border-slate-100 font-bold outline-none focus:border-blue-500 transition-all text-sm md:text-base bg-white shadow-sm appearance-none"
+                >
+                  <option value="">1. Selecione a Marca</option>
                   {brands.map(b => <option key={b.code} value={b.code}>{b.name}</option>)}
                 </select>
-                <select value={selectedModel} onChange={e => handleModelChange(e.target.value)} disabled={!selectedBrand} className="w-full p-4 rounded-xl md:rounded-2xl border-2 border-slate-100 font-bold outline-none focus:border-blue-500 transition-all text-sm md:text-base bg-white disabled:bg-slate-50 disabled:text-slate-300 appearance-none">
-                  <option value="">Selecione o Modelo</option>
+
+                <select 
+                  value={selectedModel} 
+                  onChange={e => handleModelChange(e.target.value)} 
+                  disabled={!selectedYear} 
+                  className="w-full p-4 rounded-xl md:rounded-2xl border-2 border-slate-100 font-bold outline-none focus:border-blue-500 transition-all text-sm md:text-base bg-white disabled:bg-slate-50 disabled:text-slate-300 appearance-none"
+                >
+                  <option value="">{selectedYear ? '3. Selecione o Modelo' : '2. Selecione o Ano abaixo primeiro...'}</option>
                   {models.map(m => <option key={m.code} value={m.code}>{m.name}</option>)}
                 </select>
-                <select value={selectedYear} onChange={e => handleYearChange(e.target.value)} disabled={!selectedModel} className="w-full p-4 rounded-xl md:rounded-2xl border-2 border-slate-100 font-bold outline-none focus:border-blue-500 transition-all text-sm md:text-base bg-white disabled:bg-slate-50 disabled:text-slate-300 appearance-none">
-                  <option value="">Selecione o Ano</option>
+
+                <select 
+                  value={selectedYear} 
+                  onChange={e => handleYearChange(e.target.value)} 
+                  disabled={!selectedBrand} 
+                  className="w-full p-4 rounded-xl md:rounded-2xl border-2 border-slate-100 font-bold outline-none focus:border-blue-500 transition-all text-sm md:text-base bg-white disabled:bg-slate-50 disabled:text-slate-300 appearance-none"
+                >
+                  <option value="">2. Selecione o Ano</option>
                   {years.map(y => <option key={y.code} value={y.code}>{y.name.replace('32000', 'Zero KM')}</option>)}
                 </select>
               </div>
-              {loading && <div className="text-center py-2"><div className="loader rounded-full border-4 border-t-4 h-8 w-8 mx-auto"></div><p className="text-[9px] font-black text-blue-500 mt-2 uppercase tracking-[0.2em]">Consultando...</p></div>}
+
+              {loading && (
+                <div className="text-center py-2">
+                  <div className="loader rounded-full border-4 border-t-4 h-8 w-8 mx-auto"></div>
+                  <p className="text-[9px] font-black text-blue-500 mt-2 uppercase tracking-[0.2em]">Sincronizando Banco de Dados...</p>
+                </div>
+              )}
+              
+              <p className="text-[10px] text-slate-400 font-medium text-center italic">
+                * Selecione a marca, depois o ano desejado para filtrar os modelos específicos.
+              </p>
             </section>
           ) : (
             <div className="space-y-6 animate-in slide-in-from-bottom-5 duration-500">
@@ -382,7 +424,7 @@ const App: React.FC = () => {
               </div>
 
               <button onClick={() => setResult(null)} className="w-full bg-[#ff8800] text-white font-black py-6 md:py-10 rounded-[1.5rem] md:rounded-[3rem] hover:bg-[#ff9911] shadow-xl transition-all uppercase tracking-widest text-sm md:text-lg italic mt-4 border-2 md:border-4 border-white/20 active:scale-95">
-                FAZER OUTRA BUSCA
+                REALIZAR NOVA CONSULTA
               </button>
             </div>
           )}
@@ -434,6 +476,9 @@ const App: React.FC = () => {
       <footer className="py-10 text-center opacity-30">
          <p className="text-[9px] font-black uppercase tracking-[0.4em] text-slate-400 italic">Tabela FIPE PRO &copy; 2025</p>
       </footer>
+
+      {/* Banner Ad System */}
+      <BannerAd vehicle={result} />
     </div>
   );
 };

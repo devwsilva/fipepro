@@ -1,16 +1,9 @@
 
 import { createClient } from '@supabase/supabase-js';
 
-// No Vite, variáveis VITE_ são expostas em import.meta.env
-const supabaseUrl = (import.meta as any).env?.VITE_SUPABASE_URL || 
-                    (process as any).env?.VITE_SUPABASE_URL || 
-                    'https://xkucncamqdxloljttovp.supabase.co/';
-
-// A lib do Supabase exige uma chave não-vazia para inicializar sem travar o App.
-// O valor abaixo é um placeholder caso a variável de ambiente não esteja configurada na Vercel.
-const supabaseAnonKey = (import.meta as any).env?.VITE_SUPABASE_ANON_KEY || 
-                        (process as any).env?.VITE_SUPABASE_ANON_KEY || 
-                        'KEY_NAO_CONFIGURADA'; 
+// Configuração oficial do projeto fornecido pelo usuário
+const supabaseUrl = 'https://lprncseqecfykeqjerpj.supabase.co';
+const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imxwcm5jc2VxZWNmeWtlcWplcnBqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njg1Mjg3MzEsImV4cCI6MjA4NDEwNDczMX0.pRdVLffmWBK3bqcGI3lrydtK2NRGL2UnIU5EmeH0T98';
 
 export const supabase = createClient(
   supabaseUrl,

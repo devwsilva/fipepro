@@ -1,18 +1,20 @@
 
 import { createClient } from '@supabase/supabase-js';
 
-// No Vite, variáveis de ambiente são expostas em import.meta.env
-// Na Vercel, elas devem estar configuradas no painel do projeto com o prefixo VITE_
-const supabaseUrl = (import.meta as any).env?.VITE_SUPABASE_URL || (process as any).env?.VITE_SUPABASE_URL;
-const supabaseAnonKey = (import.meta as any).env?.VITE_SUPABASE_ANON_KEY || (process as any).env?.VITE_SUPABASE_ANON_KEY;
+// No Vite, variáveis VITE_ são expostas em import.meta.env
+const supabaseUrl = (import.meta as any).env?.VITE_SUPABASE_URL || 
+                    (process as any).env?.VITE_SUPABASE_URL || 
+                    'https://xkucncamqdxloljttovp.supabase.co/';
 
-if (!supabaseUrl || supabaseUrl.includes('placeholder')) {
-  console.warn("AVISO: VITE_SUPABASE_URL não encontrada. Certifique-se de configurar as variáveis de ambiente no painel da Vercel.");
-}
+// A lib do Supabase exige uma chave não-vazia para inicializar sem travar o App.
+// O valor abaixo é um placeholder caso a variável de ambiente não esteja configurada na Vercel.
+const supabaseAnonKey = (import.meta as any).env?.VITE_SUPABASE_ANON_KEY || 
+                        (process as any).env?.VITE_SUPABASE_ANON_KEY || 
+                        'KEY_NAO_CONFIGURADA'; 
 
 export const supabase = createClient(
-  supabaseUrl || 'https://xkucncamqdxloljttovp.supabase.co/', // Fallback para a URL fornecida
-  supabaseAnonKey || 'placeholder-key',
+  supabaseUrl,
+  supabaseAnonKey,
   {
     auth: {
       persistSession: true,

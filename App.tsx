@@ -10,35 +10,31 @@ import { supabase } from './lib/supabase';
 const App: React.FC = () => {
   // Auth State
   const [user, setUser] = useState<any>(null);
-  const [authMode, setAuthMode] = useState<'login' | 'signup' | 'verify' | null>(null);
+  const [authMode, setAuthMode] = useState<'login' | 'signup' | null>(null);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [fullName, setFullName] = useState('');
-  const [verificationCode, setVerificationCode] = useState('');
   const [authError, setAuthError] = useState<string | null>(null);
   const [authMessage, setAuthMessage] = useState<string | null>(null);
   const [configMissing, setConfigMissing] = useState(false);
 
   useEffect(() => {
-    // Verificação robusta de chaves
     const checkConfig = () => {
-      const url = (import.meta as any).env?.VITE_SUPABASE_URL || (process as any).env?.VITE_SUPABASE_URL;
-      if (!url || url.includes('placeholder')) {
+      const key = (import.meta as any).env?.VITE_SUPABASE_ANON_KEY || (process as any).env?.VITE_SUPABASE_ANON_KEY;
+      if (!key || key === 'KEY_NAO_CONFIGURADA') {
         setConfigMissing(true);
       }
     };
     
     checkConfig();
 
-    // Check initial session
     supabase.auth.getSession().then(({ data: { session } }) => {
       const currentUser = session?.user ?? null;
       setUser(currentUser);
       if (currentUser) fetchFavorites(currentUser.id);
     });
 
-    // Listen auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       const activeUser = session?.user ?? null;
       setUser(activeUser);
@@ -49,14 +45,12 @@ const App: React.FC = () => {
       }
     });
 
-    // Load local history
     const savedHistory = localStorage.getItem('fipe_history_v2');
     if (savedHistory) setHistory(JSON.parse(savedHistory));
     
     return () => subscription.unsubscribe();
   }, []);
 
-  // FIPE State
   const [type, setType] = useState<VehicleType>('cars');
   const [brands, setBrands] = useState<FipeItem[]>([]);
   const [selectedBrand, setSelectedBrand] = useState<string>('');
@@ -65,7 +59,6 @@ const App: React.FC = () => {
   const [years, setYears] = useState<FipeItem[]>([]);
   const [selectedYear, setSelectedYear] = useState<string>('');
   
-  // Results & UI
   const [result, setResult] = useState<FipeResult | null>(null);
   const [loading, setLoading] = useState<boolean>(false);
   const [history, setHistory] = useState<HistoryItem[]>([]);
@@ -110,15 +103,11 @@ const App: React.FC = () => {
 
   const clearAuth = () => {
     setEmail(''); setPassword(''); setConfirmPassword(''); setFullName('');
-    setVerificationCode(''); setAuthError(null); setAuthMessage(null);
+    setAuthError(null); setAuthMessage(null);
   };
 
   const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (configMissing) {
-      setAuthError("Erro de Configuração: As chaves do Supabase não foram encontradas.");
-      return;
-    }
     setAuthError(null);
     setAuthMessage(null);
     setLoading(true);
@@ -127,7 +116,7 @@ const App: React.FC = () => {
         if (password !== confirmPassword) throw new Error('As senhas não coincidem.');
         if (password.length < 6) throw new Error('A senha deve ter pelo menos 6 caracteres.');
         
-        const { error: signUpError } = await supabase.auth.signUp({
+        const { data, error: signUpError } = await supabase.auth.signUp({
           email,
           password,
           options: { 
@@ -137,18 +126,16 @@ const App: React.FC = () => {
         
         if (signUpError) throw signUpError;
         
-        setAuthMode('verify');
-        setAuthMessage(`Um link de verificação foi enviado para ${email}.`);
-      } else if (authMode === 'verify') {
-        const { error: verifyError } = await supabase.auth.verifyOtp({
-          email,
-          token: verificationCode,
-          type: 'signup'
-        });
-        
-        if (verifyError) throw verifyError;
-        setAuthMode(null);
-        setAuthMessage("E-mail verificado com sucesso!");
+        // Se a sessão já vier no signup (Email Confirmation OFF no Supabase), logamos direto.
+        if (data.session) {
+          setAuthMode(null);
+          clearAuth();
+          setAuthMessage("Cadastro realizado! Bem-vindo.");
+        } else {
+          // Fallback caso o Supabase ainda exija confirmação (o usuário pediu para desabilitar, mas depende do Dashboard)
+          setAuthMessage("Conta criada! Tente entrar agora.");
+          setAuthMode('login');
+        }
       } else if (authMode === 'login') {
         const { error: signInError } = await supabase.auth.signInWithPassword({ email, password });
         if (signInError) throw signInError;
@@ -156,11 +143,7 @@ const App: React.FC = () => {
         clearAuth();
       }
     } catch (err: any) {
-      if (err.message === 'Failed to fetch') {
-        setAuthError("Erro de conexão. Verifique se seu navegador bloqueou a requisição.");
-      } else {
-        setAuthError(err.message || 'Ocorreu um erro inesperado.');
-      }
+      setAuthError(err.message || 'Ocorreu um erro inesperado.');
     } finally {
       setLoading(false);
     }
@@ -258,19 +241,19 @@ const App: React.FC = () => {
       }
     } catch (err: any) {
       console.error("Erro ao processar favorito:", err);
-      alert("Erro ao salvar favorito. Verifique sua conexão.");
+      alert("Erro ao salvar favorito. Verifique se o banco de dados está configurado.");
     }
   };
 
   return (
     <div className="min-h-screen bg-[#f4f7f9] text-slate-800 antialiased">
       {configMissing && (
-        <div className="bg-red-600 text-white p-2 text-[10px] font-bold text-center uppercase tracking-widest sticky top-0 z-[200] animate-pulse">
-          ⚠️ Configuração pendente: VITE_SUPABASE_URL não encontrada
+        <div className="bg-red-600 text-white p-2 text-[10px] font-bold text-center uppercase tracking-widest sticky top-0 z-[200]">
+          ⚠️ CRÍTICO: VITE_SUPABASE_ANON_KEY NÃO CONFIGURADA NA VERCEL. LOGIN E FAVORITOS DESATIVADOS.
         </div>
       )}
 
-      {/* Header - Responsividade Premium */}
+      {/* Header */}
       <header className="bg-gradient-to-r from-[#005599] to-[#003366] text-white py-6 md:py-12 px-4 shadow-xl">
         <div className="max-w-6xl mx-auto flex flex-col md:flex-row justify-between items-center gap-6">
           <div className="text-center md:text-left cursor-pointer transition-transform active:scale-95" onClick={() => setResult(null)}>
@@ -292,14 +275,14 @@ const App: React.FC = () => {
         </div>
       </header>
 
-      {/* Auth Modal - Mobile Optimized Scroll */}
+      {/* Auth Modal */}
       {authMode && (
         <div className="fixed inset-0 bg-slate-900/90 backdrop-blur-md z-[100] flex items-center justify-center p-4 overflow-y-auto overflow-x-hidden">
           <div className="bg-white rounded-[2rem] p-6 md:p-10 max-w-md w-full shadow-2xl relative my-auto animate-in fade-in zoom-in duration-300">
             <h2 className="text-xl md:text-2xl font-black mb-1 uppercase italic text-slate-900">
-              {authMode === 'login' ? 'Acessar Conta' : authMode === 'signup' ? 'Cadastrar-se' : 'Verificar Cadastro'}
+              {authMode === 'login' ? 'Acessar Conta' : 'Criar Conta'}
             </h2>
-            <p className="text-slate-400 text-[9px] mb-6 italic uppercase tracking-widest">Row Level Security (RLS) Ativo</p>
+            <p className="text-slate-400 text-[9px] mb-6 italic uppercase tracking-widest">Acesso instantâneo sem confirmação</p>
             
             {authError && <div className="mb-4 p-3 bg-red-50 text-red-600 rounded-xl text-[10px] font-bold border border-red-100">{authError}</div>}
             {authMessage && <div className="mb-4 p-3 bg-blue-50 text-blue-600 rounded-xl text-[10px] font-bold border border-blue-100">{authMessage}</div>}
@@ -308,40 +291,30 @@ const App: React.FC = () => {
               {authMode === 'signup' && (
                 <input type="text" placeholder="Nome Completo" value={fullName} onChange={e => setFullName(e.target.value)} className="w-full p-4 rounded-xl border border-slate-200 bg-slate-50 text-sm focus:ring-2 focus:ring-blue-500 outline-none font-bold" required />
               )}
-              {authMode !== 'verify' && (
-                <>
-                  <input type="email" placeholder="E-mail" value={email} onChange={e => setEmail(e.target.value)} className="w-full p-4 rounded-xl border border-slate-200 bg-slate-50 text-sm focus:ring-2 focus:ring-blue-500 outline-none font-bold" required />
-                  <input type="password" placeholder="Senha" value={password} onChange={e => setPassword(e.target.value)} className="w-full p-4 rounded-xl border border-slate-200 bg-slate-50 text-sm focus:ring-2 focus:ring-blue-500 outline-none font-bold" required />
-                </>
-              )}
+              <input type="email" placeholder="E-mail" value={email} onChange={e => setEmail(e.target.value)} className="w-full p-4 rounded-xl border border-slate-200 bg-slate-50 text-sm focus:ring-2 focus:ring-blue-500 outline-none font-bold" required />
+              <input type="password" placeholder="Senha" value={password} onChange={e => setPassword(e.target.value)} className="w-full p-4 rounded-xl border border-slate-200 bg-slate-50 text-sm focus:ring-2 focus:ring-blue-500 outline-none font-bold" required />
               {authMode === 'signup' && (
                 <input type="password" placeholder="Confirmar Senha" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} className="w-full p-4 rounded-xl border border-slate-200 bg-slate-50 text-sm focus:ring-2 focus:ring-blue-500 outline-none font-bold" required />
               )}
-              {authMode === 'verify' && (
-                <div className="space-y-3">
-                  <p className="text-[10px] font-black text-blue-500 uppercase text-center">Código de 6 dígitos</p>
-                  <input type="text" placeholder="000000" value={verificationCode} onChange={e => setVerificationCode(e.target.value)} className="w-full p-4 rounded-xl border border-slate-200 bg-slate-50 text-center text-2xl font-black tracking-[0.4em] outline-none" maxLength={6} required />
-                </div>
-              )}
               <button type="submit" disabled={loading} className="w-full bg-[#005599] text-white font-black py-4 rounded-xl shadow-lg uppercase tracking-widest text-xs italic transition-all active:scale-95 disabled:opacity-50">
-                {loading ? 'Processando...' : (authMode === 'login' ? 'Entrar' : authMode === 'signup' ? 'Cadastrar' : 'Validar')}
+                {loading ? 'Processando...' : (authMode === 'login' ? 'Entrar' : 'Cadastrar e Logar')}
               </button>
             </form>
 
             <div className="mt-6 text-center flex flex-col gap-3">
               <button onClick={() => { setAuthMode(authMode === 'login' ? 'signup' : 'login'); clearAuth(); }} className="text-[11px] font-bold text-blue-500 hover:text-blue-700">
-                {authMode === 'login' ? 'Não tem conta? Registre-se' : 'Já possui conta? Faça login'}
+                {authMode === 'login' ? 'Não tem conta? Registre-se agora' : 'Já possui conta? Faça o login'}
               </button>
-              <button onClick={() => { setAuthMode(null); clearAuth(); }} className="text-[9px] font-black text-slate-300 uppercase italic hover:text-red-500 transition-colors">Fechar Janela</button>
+              <button onClick={() => { setAuthMode(null); clearAuth(); }} className="text-[9px] font-black text-slate-300 uppercase italic hover:text-red-500 transition-colors">Fechar</button>
             </div>
           </div>
         </div>
       )}
 
-      {/* Content Area - Priorização Mobile */}
+      {/* Main Content */}
       <main className="max-w-6xl mx-auto px-4 py-6 md:py-12 flex flex-col lg:flex-row gap-6 md:gap-10">
         
-        {/* Main Column */}
+        {/* Search Column */}
         <div className="flex-1 order-1 lg:order-2">
           {!result ? (
             <section className="bg-white rounded-[1.5rem] md:rounded-[2.5rem] shadow-xl md:shadow-2xl p-5 md:p-10 space-y-6 md:space-y-10 border border-slate-100">
@@ -360,16 +333,15 @@ const App: React.FC = () => {
                   {years.map(y => <option key={y.code} value={y.code}>{y.name.replace('32000', 'Zero KM')}</option>)}
                 </select>
               </div>
-              {loading && <div className="text-center py-2"><div className="loader rounded-full border-4 border-t-4 h-8 w-8 mx-auto"></div><p className="text-[9px] font-black text-blue-500 mt-2 uppercase tracking-[0.2em]">Consultando base oficial...</p></div>}
+              {loading && <div className="text-center py-2"><div className="loader rounded-full border-4 border-t-4 h-8 w-8 mx-auto"></div><p className="text-[9px] font-black text-blue-500 mt-2 uppercase tracking-[0.2em]">Consultando...</p></div>}
             </section>
           ) : (
             <div className="space-y-6 animate-in slide-in-from-bottom-5 duration-500">
               <button onClick={() => setResult(null)} className="text-slate-400 font-black hover:text-blue-600 flex items-center gap-2 uppercase text-[9px] tracking-widest italic group active:scale-95 transition-all">
-                <span className="group-hover:-translate-x-1 transition-transform">←</span> BUSCAR OUTRO
+                <span className="group-hover:-translate-x-1 transition-transform">←</span> NOVA CONSULTA
               </button>
 
               <div className="bg-white rounded-[1.5rem] md:rounded-[3rem] shadow-2xl border border-slate-100 overflow-hidden relative">
-                {/* Result Hero - Tipografia Fluida */}
                 <div className="bg-[#005599] p-6 md:p-16 text-white text-center relative overflow-hidden">
                   <div className="absolute top-0 right-0 p-6 md:p-12 opacity-5 text-6xl md:text-9xl font-black rotate-12 select-none pointer-events-none">FIPE</div>
                   <p className="text-blue-100/70 uppercase tracking-[0.2em] text-[8px] md:text-[10px] font-black mb-3 italic">VALOR MÉDIO NACIONAL</p>
@@ -379,7 +351,6 @@ const App: React.FC = () => {
                   </div>
                 </div>
 
-                {/* Favorite Action - Mobile Optimized */}
                 <div className="bg-slate-50/50 p-4 md:p-6 flex justify-center border-b border-slate-100">
                   <button onClick={handleFavorite} className={`w-full md:w-auto px-6 md:px-12 py-3.5 md:py-4 rounded-xl md:rounded-2xl font-black text-[10px] md:text-[11px] uppercase italic transition-all shadow-md flex items-center justify-center gap-2 border-2 active:scale-95 ${favorites.some(f => f.fipeCode === result.codeFipe && f.yearId === selectedYear) ? 'bg-orange-500 text-white border-orange-500' : 'bg-white text-slate-500 border-slate-200 hover:border-orange-500 hover:text-orange-500'}`}>
                     <span className="text-sm">{favorites.some(f => f.fipeCode === result.codeFipe && f.yearId === selectedYear) ? '★' : '☆'}</span>
@@ -387,7 +358,6 @@ const App: React.FC = () => {
                   </button>
                 </div>
 
-                {/* Details Grid */}
                 <div className="p-4 md:p-14 grid grid-cols-2 md:grid-cols-3 gap-3 md:gap-8">
                   {[
                     { icon: '🏢', label: 'Marca', val: result.brand },
@@ -405,7 +375,6 @@ const App: React.FC = () => {
                   ))}
                 </div>
 
-                {/* IA and History Section - Responsive Padding */}
                 <div className="px-4 md:px-10 pb-8 md:pb-14 space-y-6 md:space-y-10">
                   <AiInsight vehicle={result} />
                   <PriceHistory fipeCode={result.codeFipe} yearId={selectedYear} vehicleType={type} />
@@ -413,20 +382,20 @@ const App: React.FC = () => {
               </div>
 
               <button onClick={() => setResult(null)} className="w-full bg-[#ff8800] text-white font-black py-6 md:py-10 rounded-[1.5rem] md:rounded-[3rem] hover:bg-[#ff9911] shadow-xl transition-all uppercase tracking-widest text-sm md:text-lg italic mt-4 border-2 md:border-4 border-white/20 active:scale-95">
-                REALIZAR NOVA CONSULTA
+                FAZER OUTRA BUSCA
               </button>
             </div>
           )}
         </div>
 
-        {/* Sidebar - Below content on mobile */}
+        {/* Sidebar */}
         <aside className="w-full lg:w-80 space-y-4 md:space-y-8 order-2 lg:order-1">
           <div className="bg-white rounded-[1.2rem] md:rounded-[2rem] p-4 md:p-6 shadow-sm border border-slate-100">
             <h3 className="font-black text-slate-800 mb-4 flex items-center gap-2 text-[11px] md:text-sm uppercase italic">
               <span className="text-blue-500">⭐</span> FAVORITOS
             </h3>
             {favorites.length === 0 ? (
-              <p className="text-[9px] text-slate-300 font-bold text-center italic py-4">{user ? 'Nenhum item salvo.' : 'Acesse sua conta para salvar.'}</p>
+              <p className="text-[9px] text-slate-300 font-bold text-center italic py-4">{user ? 'Nenhum item salvo.' : 'Crie sua conta para salvar favoritos.'}</p>
             ) : (
               <div className="grid grid-cols-1 gap-2 md:gap-4">
                 {favorites.map(f => (
@@ -444,7 +413,7 @@ const App: React.FC = () => {
             <h3 className="font-black text-slate-400 mb-4 text-[9px] md:text-[10px] uppercase italic">🕒 HISTÓRICO</h3>
             <div className="space-y-2">
               {history.length === 0 ? (
-                 <p className="text-[9px] text-slate-300 font-bold text-center italic py-4">Sua busca aparecerá aqui.</p>
+                 <p className="text-[9px] text-slate-300 font-bold text-center italic py-4">Suas buscas aparecerão aqui.</p>
               ) : (
                 history.map(h => (
                   <button key={h.id} onClick={() => displayResult(h.data, (h.data.vehicleType === 1 ? 'cars' : h.data.vehicleType === 2 ? 'motorcycles' : 'trucks'), h.id.split('-')[1])} className="w-full text-left flex items-center gap-3 p-3 hover:bg-slate-50 rounded-xl transition-all active:scale-[0.98]">
@@ -462,7 +431,6 @@ const App: React.FC = () => {
 
       </main>
       
-      {/* Footer Branding */}
       <footer className="py-10 text-center opacity-30">
          <p className="text-[9px] font-black uppercase tracking-[0.4em] text-slate-400 italic">Tabela FIPE PRO &copy; 2025</p>
       </footer>

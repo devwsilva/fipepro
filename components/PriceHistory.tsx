@@ -43,22 +43,22 @@ const PriceHistory: React.FC<Props> = ({ fipeCode, yearId, vehicleType }) => {
     loadHistory();
   }, [fipeCode, yearId, vehicleType]);
 
-  if (loading) return <div className="text-sm text-gray-400 animate-pulse font-bold tracking-widest uppercase">Carregando histórico oficial...</div>;
+  if (loading) return <div className="text-[10px] text-slate-300 animate-pulse font-black tracking-[0.2em] uppercase italic text-center py-4">Consultando Variação Histórica...</div>;
 
   return (
-    <div className="bg-white rounded-[2.5rem] p-8 border border-slate-100 shadow-sm">
-      <h3 className="text-lg font-black text-slate-800 mb-8 flex items-center gap-3 uppercase tracking-tight">
-        <span className="text-2xl">📊</span> Variação de Preço
+    <div className="bg-white rounded-[1.5rem] md:rounded-[2.5rem] p-6 md:p-8 border border-slate-100 shadow-sm">
+      <h3 className="text-base md:text-lg font-black text-slate-800 mb-6 md:mb-8 flex items-center gap-3 uppercase tracking-tight italic">
+        <span className="text-xl md:text-2xl">📊</span> Variação de Preço
       </h3>
-      <div className="space-y-5">
+      <div className="space-y-4 md:space-y-5">
         {history.map((item, idx) => (
-          <div key={idx} className="flex justify-between items-center py-4 border-b border-slate-50 last:border-0 group hover:bg-slate-50/50 rounded-xl px-2 transition-colors">
-            <span className="text-sm font-black text-slate-400 uppercase tracking-widest">{item.month}</span>
-            <span className="text-xl font-black text-slate-900 tabular-nums">{item.price}</span>
+          <div key={idx} className="flex justify-between items-center py-3 md:py-4 border-b border-slate-50 last:border-0 group hover:bg-slate-50/50 rounded-xl md:px-2 transition-colors">
+            <span className="text-[10px] md:text-sm font-black text-slate-400 uppercase tracking-widest">{item.month}</span>
+            <span className="text-base md:text-xl font-black text-slate-900 tabular-nums">{item.price}</span>
           </div>
         ))}
       </div>
-      <p className="text-[10px] text-slate-300 mt-6 font-bold uppercase tracking-widest text-center italic">* Base de dados Parallelum / FIPE Oficial</p>
+      <p className="text-[9px] text-slate-300 mt-6 font-bold uppercase tracking-widest text-center italic">* Dados extraídos da base oficial FIPE</p>
     </div>
   );
 };

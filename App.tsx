@@ -116,7 +116,7 @@ const App: React.FC = () => {
   const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault();
     if (configMissing) {
-      setAuthError("Erro de Configuração: As chaves do Supabase não foram encontradas nas variáveis de ambiente da hospedagem.");
+      setAuthError("Erro de Configuração: As chaves do Supabase não foram encontradas.");
       return;
     }
     setAuthError(null);
@@ -138,7 +138,7 @@ const App: React.FC = () => {
         if (signUpError) throw signUpError;
         
         setAuthMode('verify');
-        setAuthMessage(`Um link de verificação foi enviado para ${email}. Verifique também sua caixa de spam.`);
+        setAuthMessage(`Um link de verificação foi enviado para ${email}.`);
       } else if (authMode === 'verify') {
         const { error: verifyError } = await supabase.auth.verifyOtp({
           email,
@@ -157,7 +157,7 @@ const App: React.FC = () => {
       }
     } catch (err: any) {
       if (err.message === 'Failed to fetch') {
-        setAuthError("Não foi possível conectar ao servidor de autenticação. Isso pode ser um bloqueador de anúncios ou falha na URL do Supabase na Vercel.");
+        setAuthError("Erro de conexão. Verifique se seu navegador bloqueou a requisição.");
       } else {
         setAuthError(err.message || 'Ocorreu um erro inesperado.');
       }
@@ -258,177 +258,137 @@ const App: React.FC = () => {
       }
     } catch (err: any) {
       console.error("Erro ao processar favorito:", err);
-      alert(err.message === 'Failed to fetch' ? "Erro de conexão ao salvar favorito. Verifique seu AdBlocker." : "Erro ao salvar favorito.");
+      alert("Erro ao salvar favorito. Verifique sua conexão.");
     }
   };
 
   return (
-    <div className="min-h-screen bg-[#f4f7f9] text-slate-800">
-      {/* Banner de Aviso Crítico */}
+    <div className="min-h-screen bg-[#f4f7f9] text-slate-800 antialiased">
       {configMissing && (
-        <div className="bg-red-600 text-white p-2 text-xs font-bold text-center uppercase tracking-widest sticky top-0 z-[200] animate-pulse">
-          ⚠️ Configuração do Banco de Dados pendente na Vercel (VITE_SUPABASE_URL)
+        <div className="bg-red-600 text-white p-2 text-[10px] font-bold text-center uppercase tracking-widest sticky top-0 z-[200] animate-pulse">
+          ⚠️ Configuração pendente: VITE_SUPABASE_URL não encontrada
         </div>
       )}
 
-      {/* Header */}
-      <header className="bg-gradient-to-r from-[#005599] to-[#003366] text-white py-10 px-4 shadow-xl">
-        <div className="max-w-6xl mx-auto flex flex-col md:flex-row justify-between items-center gap-8">
-          <div className="text-center md:text-left cursor-pointer" onClick={() => setResult(null)}>
-            <h1 className="text-4xl font-black uppercase italic tracking-tight">Tabela FIPE <span className="text-[#ff8800]">PRO</span></h1>
-            <p className="text-blue-100/70 text-sm font-medium tracking-wide flex items-center justify-center md:justify-start gap-1">
-              <span className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></span> CONEXÃO SEGURA • INSIGHTS IA
+      {/* Header - Responsividade Premium */}
+      <header className="bg-gradient-to-r from-[#005599] to-[#003366] text-white py-6 md:py-12 px-4 shadow-xl">
+        <div className="max-w-6xl mx-auto flex flex-col md:flex-row justify-between items-center gap-6">
+          <div className="text-center md:text-left cursor-pointer transition-transform active:scale-95" onClick={() => setResult(null)}>
+            <h1 className="text-3xl md:text-4xl font-black uppercase italic tracking-tight">Tabela FIPE <span className="text-[#ff8800]">PRO</span></h1>
+            <p className="text-blue-100/70 text-[10px] md:text-sm font-medium tracking-wide flex items-center justify-center md:justify-start gap-1">
+              <span className="w-1.5 h-1.5 bg-green-400 rounded-full animate-pulse"></span> CONEXÃO SEGURA • INSIGHTS IA
             </p>
           </div>
           <div className="flex gap-4">
             {user ? (
-              <div className="flex items-center gap-4 bg-white/10 p-2 pl-4 rounded-full border border-white/20">
-                <span className="text-xs font-bold uppercase tracking-widest">{user.email.split('@')[0]}</span>
-                <button onClick={() => supabase.auth.signOut()} className="bg-red-500 hover:bg-red-600 px-4 py-2 rounded-full text-[10px] font-black transition-all">SAIR</button>
+              <div className="flex items-center gap-2 md:gap-4 bg-white/10 p-1.5 pl-3.5 rounded-full border border-white/20">
+                <span className="text-[10px] md:text-xs font-bold uppercase tracking-widest max-w-[100px] truncate">{user.email.split('@')[0]}</span>
+                <button onClick={() => supabase.auth.signOut()} className="bg-red-500 hover:bg-red-600 px-3 md:px-5 py-1.5 md:py-2.5 rounded-full text-[9px] md:text-[10px] font-black transition-all shadow-lg active:scale-90">SAIR</button>
               </div>
             ) : (
-              <button onClick={() => { setAuthMode('login'); clearAuth(); }} className="bg-[#ff8800] hover:bg-[#ff9911] px-8 py-3 rounded-full font-black text-sm shadow-lg transition-all">ENTRAR / CADASTRAR</button>
+              <button onClick={() => { setAuthMode('login'); clearAuth(); }} className="bg-[#ff8800] hover:bg-[#ff9911] px-6 md:px-8 py-3 rounded-full font-black text-xs md:text-sm shadow-lg transition-all active:scale-95">ENTRAR / CADASTRAR</button>
             )}
           </div>
         </div>
       </header>
 
-      {/* Auth Modal */}
+      {/* Auth Modal - Mobile Optimized Scroll */}
       {authMode && (
-        <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
-          <div className="bg-white rounded-[2.5rem] p-10 max-w-md w-full shadow-2xl relative overflow-hidden">
-            <h2 className="text-2xl font-black mb-1 uppercase italic">
+        <div className="fixed inset-0 bg-slate-900/90 backdrop-blur-md z-[100] flex items-center justify-center p-4 overflow-y-auto overflow-x-hidden">
+          <div className="bg-white rounded-[2rem] p-6 md:p-10 max-w-md w-full shadow-2xl relative my-auto animate-in fade-in zoom-in duration-300">
+            <h2 className="text-xl md:text-2xl font-black mb-1 uppercase italic text-slate-900">
               {authMode === 'login' ? 'Acessar Conta' : authMode === 'signup' ? 'Cadastrar-se' : 'Verificar Cadastro'}
             </h2>
-            <p className="text-slate-400 text-[10px] mb-8 italic uppercase tracking-widest">Proteção via Row Level Security (RLS)</p>
+            <p className="text-slate-400 text-[9px] mb-6 italic uppercase tracking-widest">Row Level Security (RLS) Ativo</p>
             
-            {authError && <div className="mb-4 p-3 bg-red-50 text-red-600 rounded-lg text-xs font-bold border border-red-100">{authError}</div>}
-            {authMessage && <div className="mb-4 p-3 bg-blue-50 text-blue-600 rounded-lg text-xs font-bold border border-blue-100">{authMessage}</div>}
+            {authError && <div className="mb-4 p-3 bg-red-50 text-red-600 rounded-xl text-[10px] font-bold border border-red-100">{authError}</div>}
+            {authMessage && <div className="mb-4 p-3 bg-blue-50 text-blue-600 rounded-xl text-[10px] font-bold border border-blue-100">{authMessage}</div>}
 
-            <form onSubmit={handleAuth} className="space-y-4">
+            <form onSubmit={handleAuth} className="space-y-3">
               {authMode === 'signup' && (
-                <input type="text" placeholder="Nome Completo" value={fullName} onChange={e => setFullName(e.target.value)} className="w-full p-4 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white outline-none font-bold text-slate-800" required />
+                <input type="text" placeholder="Nome Completo" value={fullName} onChange={e => setFullName(e.target.value)} className="w-full p-4 rounded-xl border border-slate-200 bg-slate-50 text-sm focus:ring-2 focus:ring-blue-500 outline-none font-bold" required />
               )}
               {authMode !== 'verify' && (
                 <>
-                  <input type="email" placeholder="Seu E-mail" value={email} onChange={e => setEmail(e.target.value)} className="w-full p-4 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white outline-none font-bold text-slate-800" required />
-                  <input type="password" placeholder="Senha" value={password} onChange={e => setPassword(e.target.value)} className="w-full p-4 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white outline-none font-bold text-slate-800" required />
+                  <input type="email" placeholder="E-mail" value={email} onChange={e => setEmail(e.target.value)} className="w-full p-4 rounded-xl border border-slate-200 bg-slate-50 text-sm focus:ring-2 focus:ring-blue-500 outline-none font-bold" required />
+                  <input type="password" placeholder="Senha" value={password} onChange={e => setPassword(e.target.value)} className="w-full p-4 rounded-xl border border-slate-200 bg-slate-50 text-sm focus:ring-2 focus:ring-blue-500 outline-none font-bold" required />
                 </>
               )}
               {authMode === 'signup' && (
-                <input type="password" placeholder="Confirmar Senha" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} className="w-full p-4 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white outline-none font-bold text-slate-800" required />
+                <input type="password" placeholder="Confirmar Senha" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} className="w-full p-4 rounded-xl border border-slate-200 bg-slate-50 text-sm focus:ring-2 focus:ring-blue-500 outline-none font-bold" required />
               )}
               {authMode === 'verify' && (
-                <div className="space-y-4">
-                  <p className="text-[10px] font-black text-blue-500 uppercase text-center">Digite o código enviado ao seu e-mail</p>
-                  <input type="text" placeholder="0 0 0 0 0 0" value={verificationCode} onChange={e => setVerificationCode(e.target.value)} className="w-full p-4 rounded-xl border border-slate-200 bg-slate-50 text-center text-3xl font-black tracking-[0.5em] outline-none" maxLength={6} required />
+                <div className="space-y-3">
+                  <p className="text-[10px] font-black text-blue-500 uppercase text-center">Código de 6 dígitos</p>
+                  <input type="text" placeholder="000000" value={verificationCode} onChange={e => setVerificationCode(e.target.value)} className="w-full p-4 rounded-xl border border-slate-200 bg-slate-50 text-center text-2xl font-black tracking-[0.4em] outline-none" maxLength={6} required />
                 </div>
               )}
-              <button 
-                type="submit" 
-                disabled={loading}
-                className="w-full bg-[#005599] text-white font-black py-4 rounded-xl shadow-lg uppercase tracking-widest text-sm italic transition-all hover:bg-blue-800 disabled:opacity-50"
-              >
-                {loading ? 'Processando...' : (authMode === 'login' ? 'Entrar Agora' : authMode === 'signup' ? 'Enviar Código' : 'Validar Token')}
+              <button type="submit" disabled={loading} className="w-full bg-[#005599] text-white font-black py-4 rounded-xl shadow-lg uppercase tracking-widest text-xs italic transition-all active:scale-95 disabled:opacity-50">
+                {loading ? 'Processando...' : (authMode === 'login' ? 'Entrar' : authMode === 'signup' ? 'Cadastrar' : 'Validar')}
               </button>
             </form>
 
             <div className="mt-6 text-center flex flex-col gap-3">
-              <button onClick={() => { setAuthMode(authMode === 'login' ? 'signup' : 'login'); clearAuth(); }} className="text-xs font-bold text-blue-500 hover:underline">
-                {authMode === 'login' ? 'Não tem conta? Crie uma aqui' : 'Já tem conta? Entre por aqui'}
+              <button onClick={() => { setAuthMode(authMode === 'login' ? 'signup' : 'login'); clearAuth(); }} className="text-[11px] font-bold text-blue-500 hover:text-blue-700">
+                {authMode === 'login' ? 'Não tem conta? Registre-se' : 'Já possui conta? Faça login'}
               </button>
-              <button onClick={() => { setAuthMode(null); clearAuth(); }} className="text-[10px] font-black text-slate-300 uppercase italic hover:text-red-500">Fechar</button>
+              <button onClick={() => { setAuthMode(null); clearAuth(); }} className="text-[9px] font-black text-slate-300 uppercase italic hover:text-red-500 transition-colors">Fechar Janela</button>
             </div>
           </div>
         </div>
       )}
 
-      {/* Main Content */}
-      <main className="max-w-6xl mx-auto px-4 py-12 grid grid-cols-1 lg:grid-cols-4 gap-10">
-        <aside className="lg:col-span-1 space-y-8">
-          <div className="bg-white rounded-[2rem] p-6 shadow-sm border border-slate-100">
-            <h3 className="font-black text-slate-800 mb-6 flex items-center gap-2 text-sm uppercase italic">
-              <span className="text-blue-500">⭐</span> FAVORITOS
-            </h3>
-            {favorites.length === 0 ? (
-              <p className="text-[10px] text-slate-300 font-bold text-center italic">{user ? 'Sua lista está vazia.' : 'Faça login para salvar.'}</p>
-            ) : (
-              <div className="space-y-4">
-                {favorites.map(f => (
-                  <button key={`${f.fipeCode}-${f.yearId}`} onClick={() => loadFromList(f.vehicleType, f.fipeCode, f.yearId)} className="w-full text-left p-4 rounded-2xl bg-slate-50 border border-slate-100 hover:border-blue-200 transition-all shadow-sm">
-                    <p className="text-[9px] text-slate-400 font-black uppercase truncate">{f.brandName}</p>
-                    <p className="text-xs font-black truncate">{f.modelName}</p>
-                    <p className="text-[11px] font-black text-blue-600 mt-1">{f.savedPrice}</p>
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-
-          <div className="bg-white rounded-[2rem] p-6 shadow-sm border border-slate-100">
-            <h3 className="font-black text-slate-400 mb-6 text-[10px] uppercase italic">🕒 HISTÓRICO</h3>
-            <div className="space-y-3">
-              {history.length === 0 ? (
-                 <p className="text-[10px] text-slate-300 font-bold text-center italic">Nenhuma busca.</p>
-              ) : (
-                history.map(h => (
-                  <button key={h.id} onClick={() => displayResult(h.data, (h.data.vehicleType === 1 ? 'cars' : h.data.vehicleType === 2 ? 'motorcycles' : 'trucks'), h.id.split('-')[1])} className="w-full text-left flex items-center gap-3 p-3 hover:bg-slate-50 rounded-xl transition-all border border-transparent hover:border-slate-100">
-                    <span className="opacity-30 text-lg">{h.data.vehicleType === 1 ? '🚗' : '🏍️'}</span>
-                    <div className="overflow-hidden">
-                      <p className="text-[9px] font-black text-slate-400 uppercase truncate">{h.data.brand}</p>
-                      <p className="text-[11px] font-bold text-slate-600 truncate">{h.data.model}</p>
-                    </div>
-                  </button>
-                ))
-              )}
-            </div>
-          </div>
-        </aside>
-
-        <div className="lg:col-span-3">
+      {/* Content Area - Priorização Mobile */}
+      <main className="max-w-6xl mx-auto px-4 py-6 md:py-12 flex flex-col lg:flex-row gap-6 md:gap-10">
+        
+        {/* Main Column */}
+        <div className="flex-1 order-1 lg:order-2">
           {!result ? (
-            <section className="bg-white rounded-[2.5rem] shadow-2xl p-10 space-y-10 border border-slate-100">
+            <section className="bg-white rounded-[1.5rem] md:rounded-[2.5rem] shadow-xl md:shadow-2xl p-5 md:p-10 space-y-6 md:space-y-10 border border-slate-100">
               <VehicleTypeSelector selected={type} onChange={setType} />
-              <div className="space-y-6">
-                <select value={selectedBrand} onChange={e => handleBrandChange(e.target.value)} className="w-full p-5 rounded-2xl border-2 border-slate-100 font-bold outline-none focus:border-blue-500 appearance-none bg-white">
+              <div className="grid grid-cols-1 gap-3 md:gap-6">
+                <select value={selectedBrand} onChange={e => handleBrandChange(e.target.value)} className="w-full p-4 rounded-xl md:rounded-2xl border-2 border-slate-100 font-bold outline-none focus:border-blue-500 transition-all text-sm md:text-base bg-white shadow-sm appearance-none">
                   <option value="">Selecione a Marca</option>
                   {brands.map(b => <option key={b.code} value={b.code}>{b.name}</option>)}
                 </select>
-                <select value={selectedModel} onChange={e => handleModelChange(e.target.value)} disabled={!selectedBrand} className="w-full p-5 rounded-2xl border-2 border-slate-100 font-bold outline-none focus:border-blue-500 appearance-none bg-white disabled:opacity-50">
+                <select value={selectedModel} onChange={e => handleModelChange(e.target.value)} disabled={!selectedBrand} className="w-full p-4 rounded-xl md:rounded-2xl border-2 border-slate-100 font-bold outline-none focus:border-blue-500 transition-all text-sm md:text-base bg-white disabled:bg-slate-50 disabled:text-slate-300 appearance-none">
                   <option value="">Selecione o Modelo</option>
                   {models.map(m => <option key={m.code} value={m.code}>{m.name}</option>)}
                 </select>
-                <select value={selectedYear} onChange={e => handleYearChange(e.target.value)} disabled={!selectedModel} className="w-full p-5 rounded-2xl border-2 border-slate-100 font-bold outline-none focus:border-blue-500 appearance-none bg-white disabled:opacity-50">
+                <select value={selectedYear} onChange={e => handleYearChange(e.target.value)} disabled={!selectedModel} className="w-full p-4 rounded-xl md:rounded-2xl border-2 border-slate-100 font-bold outline-none focus:border-blue-500 transition-all text-sm md:text-base bg-white disabled:bg-slate-50 disabled:text-slate-300 appearance-none">
                   <option value="">Selecione o Ano</option>
                   {years.map(y => <option key={y.code} value={y.code}>{y.name.replace('32000', 'Zero KM')}</option>)}
                 </select>
               </div>
-              {loading && <div className="text-center py-4"><div className="loader rounded-full border-4 border-t-4 h-10 w-10 mx-auto"></div><p className="text-[10px] font-black text-blue-500 mt-2 uppercase">Sincronizando base oficial segura...</p></div>}
+              {loading && <div className="text-center py-2"><div className="loader rounded-full border-4 border-t-4 h-8 w-8 mx-auto"></div><p className="text-[9px] font-black text-blue-500 mt-2 uppercase tracking-[0.2em]">Consultando base oficial...</p></div>}
             </section>
           ) : (
-            <div className="space-y-8 animate-in slide-in-from-bottom-10 duration-500">
-              <button onClick={() => setResult(null)} className="text-slate-400 font-black hover:text-blue-600 flex items-center gap-2 uppercase text-[10px] tracking-widest italic group">
-                <span className="group-hover:-translate-x-1 transition-transform">←</span> VOLTAR
+            <div className="space-y-6 animate-in slide-in-from-bottom-5 duration-500">
+              <button onClick={() => setResult(null)} className="text-slate-400 font-black hover:text-blue-600 flex items-center gap-2 uppercase text-[9px] tracking-widest italic group active:scale-95 transition-all">
+                <span className="group-hover:-translate-x-1 transition-transform">←</span> BUSCAR OUTRO
               </button>
 
-              <div className="bg-white rounded-[3rem] shadow-2xl border border-slate-100 overflow-hidden relative">
-                <div className="bg-[#005599] p-16 text-white text-center relative overflow-hidden">
-                  <div className="absolute top-0 right-0 p-12 opacity-5 text-9xl font-black rotate-12 select-none">FIPE</div>
-                  <p className="text-blue-100/70 uppercase tracking-[0.3em] text-[10px] font-black mb-4 italic">VALOR MÉDIO ESTIMADO</p>
-                  <h3 className="text-7xl md:text-8xl font-black mb-8 italic tracking-tighter">{result.price}</h3>
-                  <div className="inline-flex items-center gap-4 bg-white/10 px-8 py-3 rounded-full text-sm font-black border border-white/20 backdrop-blur-md">
-                    <span className="opacity-50 uppercase text-[10px]">Ref:</span> {result.referenceMonth}
+              <div className="bg-white rounded-[1.5rem] md:rounded-[3rem] shadow-2xl border border-slate-100 overflow-hidden relative">
+                {/* Result Hero - Tipografia Fluida */}
+                <div className="bg-[#005599] p-6 md:p-16 text-white text-center relative overflow-hidden">
+                  <div className="absolute top-0 right-0 p-6 md:p-12 opacity-5 text-6xl md:text-9xl font-black rotate-12 select-none pointer-events-none">FIPE</div>
+                  <p className="text-blue-100/70 uppercase tracking-[0.2em] text-[8px] md:text-[10px] font-black mb-3 italic">VALOR MÉDIO NACIONAL</p>
+                  <h3 className="text-4xl sm:text-6xl md:text-8xl font-black mb-6 md:mb-8 italic tracking-tighter leading-none">{result.price}</h3>
+                  <div className="inline-flex items-center gap-2 md:gap-4 bg-white/10 px-4 md:px-8 py-2 md:py-3 rounded-full text-[10px] md:text-sm font-black border border-white/20 backdrop-blur-md">
+                    <span className="opacity-50 uppercase text-[8px]">Mês Ref:</span> {result.referenceMonth}
                   </div>
                 </div>
 
-                <div className="bg-slate-50/80 p-6 flex justify-center gap-4 border-b border-slate-100">
-                  <button onClick={handleFavorite} className={`px-10 py-4 rounded-2xl font-black text-[11px] uppercase italic transition-all shadow-md flex items-center gap-2 border-2 ${favorites.some(f => f.fipeCode === result.codeFipe && f.yearId === selectedYear) ? 'bg-orange-500 text-white border-orange-500' : 'bg-white text-slate-500 border-transparent hover:text-orange-500'}`}>
-                    <span>{favorites.some(f => f.fipeCode === result.codeFipe && f.yearId === selectedYear) ? '★' : '☆'}</span>
+                {/* Favorite Action - Mobile Optimized */}
+                <div className="bg-slate-50/50 p-4 md:p-6 flex justify-center border-b border-slate-100">
+                  <button onClick={handleFavorite} className={`w-full md:w-auto px-6 md:px-12 py-3.5 md:py-4 rounded-xl md:rounded-2xl font-black text-[10px] md:text-[11px] uppercase italic transition-all shadow-md flex items-center justify-center gap-2 border-2 active:scale-95 ${favorites.some(f => f.fipeCode === result.codeFipe && f.yearId === selectedYear) ? 'bg-orange-500 text-white border-orange-500' : 'bg-white text-slate-500 border-slate-200 hover:border-orange-500 hover:text-orange-500'}`}>
+                    <span className="text-sm">{favorites.some(f => f.fipeCode === result.codeFipe && f.yearId === selectedYear) ? '★' : '☆'}</span>
                     {favorites.some(f => f.fipeCode === result.codeFipe && f.yearId === selectedYear) ? 'REMOVER DOS FAVORITOS' : 'ADICIONAR AOS FAVORITOS'}
                   </button>
                 </div>
 
-                <div className="p-10 md:p-14 grid grid-cols-2 lg:grid-cols-3 gap-8">
+                {/* Details Grid */}
+                <div className="p-4 md:p-14 grid grid-cols-2 md:grid-cols-3 gap-3 md:gap-8">
                   {[
                     { icon: '🏢', label: 'Marca', val: result.brand },
                     { icon: '🚘', label: 'Modelo', val: result.model },
@@ -437,27 +397,75 @@ const App: React.FC = () => {
                     { icon: '📋', label: 'Cód Fipe', val: result.codeFipe },
                     { icon: result.vehicleType === 1 ? '🚗' : '🏍️', label: 'Tipo', val: result.vehicleType === 1 ? 'Carro' : 'Moto' }
                   ].map((it, idx) => (
-                    <div key={idx} className="p-6 rounded-3xl bg-slate-50 border border-slate-100 text-center">
-                      <span className="text-3xl mb-2 block">{it.icon}</span>
-                      <p className="text-[10px] text-slate-400 font-black uppercase mb-1 italic">{it.label}</p>
-                      <p className="text-lg font-black text-slate-900 leading-tight">{it.val}</p>
+                    <div key={idx} className="p-4 rounded-xl md:rounded-3xl bg-slate-50 border border-slate-100 flex flex-col items-center justify-center text-center">
+                      <span className="text-xl md:text-3xl mb-1.5 md:mb-2">{it.icon}</span>
+                      <p className="text-[8px] md:text-[10px] text-slate-400 font-black uppercase mb-0.5 md:mb-1 italic tracking-tight">{it.label}</p>
+                      <p className="text-xs md:text-lg font-black text-slate-900 leading-tight truncate w-full">{it.val}</p>
                     </div>
                   ))}
                 </div>
 
-                <div className="px-10 pb-14 space-y-10">
+                {/* IA and History Section - Responsive Padding */}
+                <div className="px-4 md:px-10 pb-8 md:pb-14 space-y-6 md:space-y-10">
                   <AiInsight vehicle={result} />
                   <PriceHistory fipeCode={result.codeFipe} yearId={selectedYear} vehicleType={type} />
                 </div>
               </div>
 
-              <button onClick={() => setResult(null)} className="w-full bg-[#ff8800] text-white font-black py-12 rounded-[3rem] hover:bg-[#ff9911] shadow-2xl shadow-orange-100 transition-all uppercase tracking-[0.4em] text-lg italic mt-8 border-4 border-white/20">
-                REALIZAR NOVA CONSULTA OFICIAL
+              <button onClick={() => setResult(null)} className="w-full bg-[#ff8800] text-white font-black py-6 md:py-10 rounded-[1.5rem] md:rounded-[3rem] hover:bg-[#ff9911] shadow-xl transition-all uppercase tracking-widest text-sm md:text-lg italic mt-4 border-2 md:border-4 border-white/20 active:scale-95">
+                REALIZAR NOVA CONSULTA
               </button>
             </div>
           )}
         </div>
+
+        {/* Sidebar - Below content on mobile */}
+        <aside className="w-full lg:w-80 space-y-4 md:space-y-8 order-2 lg:order-1">
+          <div className="bg-white rounded-[1.2rem] md:rounded-[2rem] p-4 md:p-6 shadow-sm border border-slate-100">
+            <h3 className="font-black text-slate-800 mb-4 flex items-center gap-2 text-[11px] md:text-sm uppercase italic">
+              <span className="text-blue-500">⭐</span> FAVORITOS
+            </h3>
+            {favorites.length === 0 ? (
+              <p className="text-[9px] text-slate-300 font-bold text-center italic py-4">{user ? 'Nenhum item salvo.' : 'Acesse sua conta para salvar.'}</p>
+            ) : (
+              <div className="grid grid-cols-1 gap-2 md:gap-4">
+                {favorites.map(f => (
+                  <button key={`${f.fipeCode}-${f.yearId}`} onClick={() => loadFromList(f.vehicleType, f.fipeCode, f.yearId)} className="w-full text-left p-3.5 rounded-xl bg-slate-50 border border-slate-100 hover:border-blue-200 transition-all active:scale-[0.98]">
+                    <p className="text-[8px] text-slate-400 font-black uppercase truncate">{f.brandName}</p>
+                    <p className="text-[10px] md:text-xs font-black truncate">{f.modelName}</p>
+                    <p className="text-[10px] font-black text-blue-600 mt-1">{f.savedPrice}</p>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div className="bg-white rounded-[1.2rem] md:rounded-[2rem] p-4 md:p-6 shadow-sm border border-slate-100">
+            <h3 className="font-black text-slate-400 mb-4 text-[9px] md:text-[10px] uppercase italic">🕒 HISTÓRICO</h3>
+            <div className="space-y-2">
+              {history.length === 0 ? (
+                 <p className="text-[9px] text-slate-300 font-bold text-center italic py-4">Sua busca aparecerá aqui.</p>
+              ) : (
+                history.map(h => (
+                  <button key={h.id} onClick={() => displayResult(h.data, (h.data.vehicleType === 1 ? 'cars' : h.data.vehicleType === 2 ? 'motorcycles' : 'trucks'), h.id.split('-')[1])} className="w-full text-left flex items-center gap-3 p-3 hover:bg-slate-50 rounded-xl transition-all active:scale-[0.98]">
+                    <span className="opacity-40 text-sm md:text-lg">{h.data.vehicleType === 1 ? '🚗' : '🏍️'}</span>
+                    <div className="overflow-hidden">
+                      <p className="text-[8px] font-black text-slate-400 uppercase truncate">{h.data.brand}</p>
+                      <p className="text-[10px] font-bold text-slate-600 truncate">{h.data.model}</p>
+                    </div>
+                  </button>
+                ))
+              )}
+            </div>
+          </div>
+        </aside>
+
       </main>
+      
+      {/* Footer Branding */}
+      <footer className="py-10 text-center opacity-30">
+         <p className="text-[9px] font-black uppercase tracking-[0.4em] text-slate-400 italic">Tabela FIPE PRO &copy; 2025</p>
+      </footer>
     </div>
   );
 };
